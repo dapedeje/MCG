@@ -1,0 +1,90 @@
+---
+title: "Cosas"
+author: "David Alejandro Pedroza De Jesús"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  pdf_document: 
+    toc: TRUE 
+  html_document:
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+lang: es
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Cargamos las librerías necesarias y borramos las variables anteriores:
+
+```{r results='hide', warning=FALSE}
+rm(list=ls())#Esto para borrar las variables anteriores
+packages = c("DBI","odbc","tidyverse","readxl")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE,
+                     repos='http://cran.rediris.es')
+  }
+  library(x, character.only = TRUE)
+})
+```
+
+hacemos una conexión con nuestra base de datos.
+
+```{r}
+con <- dbConnect(odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server",  
+                 Server   = "DAVID",
+                 Database = "AdventureWorks2016_EXT",
+                 Trusted_Connection = "Yes")
+```
+
+Buscamos las tablas del esquema que coinciden con nuestra base de datos
+
+```{r}
+Tablas_T <- dbListTables(con)
+
+Tabla_comp <- Tablas_T[startsWith(Tablas_T,"Purchase")]
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp
+```
+
+```{r}
+lista_tablas <- list()
+for(i in 1:length(Tabla_comp)){
+  consulta <- paste0("SELECT * FROM Purchasing.",Tabla_comp[i])
+  lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r, warning=FALSE}
+Calendario <- read_excel("Calendario.xlsx", 
+    col_types = c("numeric", "date", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "text", "text", "text", 
+        "text", "text", "text", "text", "date", 
+        "date", "date", "date", "date", "date", 
+        "date", "date", "numeric", "date", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text"))
+```
+
+```{r}
+head(Calendario)
+```
+
+
+
+
+
