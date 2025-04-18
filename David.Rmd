@@ -95,14 +95,34 @@ Calendario <- read_excel("Calendario.xlsx",
 # Producto más comprado.
 
 ```{r}
-lista_tablas$PurchaseOrderHeader %>%
-  join_by()
+TablaHechos <- lista_tablas$PurchaseOrderHeader
+TablaHechosDetalle <- lista_tablas$PurchaseOrderDetail
+TablaProducto <- lista_tablas$Production.Product
 ```
+
+Los 10 procutos más vendidos.
 
 ```{r}
-lista_tablas$p
+Top10 <-  TablaHechos %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10)
+Top10
 ```
 
+
+Ventas de los productos:
+
+```{r}
+Top10 %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue")
+```
 
 
 
