@@ -63,6 +63,15 @@ for(i in 1:length(Tabla_comp)){
 }
 ```
 
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
 ```{r, warning=FALSE}
 Calendario <- read_excel("Calendario.xlsx", 
     col_types = c("numeric", "date", "numeric", 

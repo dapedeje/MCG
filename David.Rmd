@@ -52,6 +52,7 @@ Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
 Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
 Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
 Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "PurchaseOrderDetail"])
 Tabla_comp
 ```
 
@@ -62,6 +63,16 @@ for(i in 1:length(Tabla_comp)){
   lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
 }
 ```
+
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
 
 ```{r, warning=FALSE}
 Calendario <- read_excel("Calendario.xlsx", 
@@ -80,8 +91,16 @@ Calendario <- read_excel("Calendario.xlsx",
         "numeric", "numeric", "text", "text"))
 ```
 
+
+# Producto más comprado.
+
 ```{r}
-head(Calendario)
+lista_tablas$PurchaseOrderHeader %>%
+  join_by()
+```
+
+```{r}
+lista_tablas$p
 ```
 
 
