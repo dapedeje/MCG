@@ -121,11 +121,10 @@ Ventas de los productos:
 ```{r}
 Top10 %>%
   ggplot(aes(x = Total, y = Name)) +
-  geom_bar(stat = "identity", fill = "lightblue")
-```
-```{r}
-Top10 %>%
-  inner_join()
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
 ```
 
 
