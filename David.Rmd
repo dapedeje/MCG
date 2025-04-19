@@ -123,7 +123,39 @@ Top10 %>%
   ggplot(aes(x = Total, y = Name)) +
   geom_bar(stat = "identity", fill = "lightblue")
 ```
+```{r}
+Top10 %>%
+  inner_join()
+```
 
 
 
+# Compras en funcion del dia.
+
+```{r}
+TablaDeHechos <- lista_tablas$PurchaseOrderHeader
+
+TablaCompDias <- TablaDeHechos %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  select(PurchaseOrderID, "Dia Semana","Dia Semana Num") %>%
+  rename("Dia" = "Dia Semana", "DiaNum" = "Dia Semana Num") %>%
+  group_by(Dia,DiaNum) %>%
+  summarise("TotalOrdenes" = n()) %>%
+  arrange(DiaNum)
+
+TablaCompDias %>% select(Dia,TotalOrdenes)
+```
+
+
+```{r}
+TablaCompDias %>%
+  ggplot(aes(y = TotalOrdenes, x = factor(DiaNum))) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  scale_x_discrete(labels = c("7" = "Domingo", "6" = "Sabado", "5" = "Viernes",
+                              "4" = "Jueves", "3" = "Miercoles", "2" = "Martes",
+                              "1" = "Lunes")) + 
+  ggtitle("Cantidad de ordenes por día") +
+  xlab("Día") + 
+  ylab("Total de ordenes")
+```
 
