@@ -1,0 +1,153 @@
+---
+title: "pruebas"
+author: "Victor Alvarez"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list=ls())#Esto para borrar las variables anteriores
+packages = c("DBI","odbc","tidyverse","readxl")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE,
+                     repos='http://cran.rediris.es')
+  }
+  library(x, character.only = TRUE)
+})
+```
+
+
+```{r}
+con <- dbConnect(odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server",  
+                 Server   = "localhost",
+                 Database = "AdventureWorks2016_EXT",
+                 Trusted_Connection = "Yes")
+```
+
+
+```{r}
+Tablas_T <- dbListTables(con)
+
+Tabla_comp <- Tablas_T[startsWith(Tablas_T,"Purchase")]
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "PurchaseOrderDetail"])
+Tabla_comp 
+```
+
+```{r}
+lista_tablas <- list()
+for(i in 1:length(Tabla_comp)){
+  consulta <- paste0("SELECT * FROM Purchasing.",Tabla_comp[i])
+  lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+
+```{r, warning=FALSE}
+Calendario <- read_excel("Calendario.xlsx", 
+    col_types = c("numeric", "date", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "text", "text", "text", 
+        "text", "text", "text", "text", "date", 
+        "date", "date", "date", "date", "date", 
+        "date", "date", "numeric", "date", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text"))
+```
+
+ 
+
+
+#Ranking de metodos
+
+
+```{r}
+metodos
+header
+
+```
+
+
+
+```{r}
+metodos<-lista_tablas$ShipMethod
+header<- lista_tablas$PurchaseOrderHeader 
+
+ranking <-  metodos %>%
+  inner_join(header, by = "ShipMethodID") %>%
+  select(Name) %>%
+  group_by(Name)%>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total))
+
+
+
+```
+
+ 
+
+
+
+```{r}
+Promedio_gasto <-  metodos %>%  
+  group_by(Name)%>%
+  summarise("Promedio" = mean(ShipBase + ShipRate))%>%
+  select(Name, Promedio)
+
+Promedio_gasto
+```
+
+
+```{r}
+Promedio_tiempo<-metodos %>%  
+  inner_join(header, by = "ShipMethodID") %>%
+  group_by(Name)%>%
+  summarise("Promedio"=mean(ShipDate-OrderDate ))%>%
+  select(Name,Promedio)
+  
+
+
+Promedio_tiempo
+```
+
+ #Evolucion de cada metodo en funcion del tiempo
+
+
+```{r}
+library(lubridate)
+EnviosTiempo<-metodos %>%  
+  inner_join(header, by = "ShipMethodID") %>%
+  mutate( "Fecha"= format(OrderDate, "%Y-%m"))%>%
+  group_by(Fecha, Name)%>%
+  summarise("Total" = n()) %>%
+  arrange(Fecha,Name)%>%
+  select(Fecha,Name,Total)
+EnviosTiempo 
+```
+
+ 
+
