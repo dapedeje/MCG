@@ -95,12 +95,11 @@ Calendario <- read_excel("Calendario.xlsx",
 # Producto más comprado.
 
 ```{r}
-TablaHechos <- lista_tablas$PurchaseOrderHeader
 TablaHechosDetalle <- lista_tablas$PurchaseOrderDetail
 TablaProducto <- lista_tablas$Production.Product
 ```
 
-Los 10 procutos más vendidos.
+Los 10 productos más vendidos.
 
 ```{r}
 Top10 <-  TablaHechos %>%
@@ -113,6 +112,7 @@ Top10 <-  TablaHechos %>%
   arrange(desc(Total)) %>%
   head(10)
 Top10
+
 ```
 
 
@@ -157,4 +157,147 @@ TablaCompDias %>%
   xlab("Día") + 
   ylab("Total de ordenes")
 ```
+Del día más con más ordenes veamos que productos son los más ordenados.
+
+
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "miércoles") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día miércoles)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+Es curioso que el producto con más ordenes el miércoles, sería interesante, sería interesante ver que es lo que se vende en cada día:
+
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "domingo") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día domingo)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "lunes") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día lunes)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "martes") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día martes)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "jueves") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día jueves)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "viernes") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día viernes)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+
+```{r}
+lista_tablas$PurchaseOrderHeader %>%
+  inner_join(Calendario, by = join_by(OrderDate == Fecha)) %>%
+  rename("DiaSem" = "Dia Semana" ) %>%
+  filter(DiaSem == "sábado") %>%
+  inner_join(TablaHechosDetalle, by = "PurchaseOrderID") %>%
+  select(PurchaseOrderID, ProductID) %>%
+  inner_join(TablaProducto, by = "ProductID") %>%
+  select(Name) %>%
+  group_by(Name) %>%
+  summarise("Total" = n()) %>%
+  arrange(desc(Total)) %>%
+  head(10) %>%
+  ggplot(aes(x = Total, y = Name)) +
+  geom_bar(stat = "identity", fill = "lightblue") + 
+  ggtitle("Cantidad de ordenes por producto(Día sábado)") +
+  xlab("Numero de ordenes") + 
+  ylab("Nombre del producto")
+```
+
+
 
