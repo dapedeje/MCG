@@ -1,0 +1,165 @@
+---
+title: "Ruben"
+output: html_document
+date: "2025-04-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list=ls())#Esto para borrar las variables anteriores
+packages = c("DBI","odbc","tidyverse","readxl")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE,
+                     repos='http://cran.rediris.es')
+  }
+  library(x, character.only = TRUE)
+})
+```
+
+
+```{r}
+con <- dbConnect(odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server",  
+                 Server   = "localhost",
+                 Database = "AdventureWorks2016_EXT",
+                 Trusted_Connection = "Yes")
+```
+
+```{r}
+Tablas_T <- dbListTables(con)
+
+Tabla_comp <- Tablas_T[startsWith(Tablas_T,"Purchase")]
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "PurchaseOrderDetail"])
+Tabla_comp
+```
+
+```{r}
+lista_tablas <- list()
+for(i in 1:length(Tabla_comp)){
+  consulta <- paste0("SELECT * FROM Purchasing.",Tabla_comp[i])
+  lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r, warning=FALSE}
+Calendario <- read_excel("Calendario.xlsx", 
+    col_types = c("numeric", "date", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "text", "text", "text", 
+        "text", "text", "text", "text", "date", 
+        "date", "date", "date", "date", "date", 
+        "date", "date", "numeric", "date", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text"))
+```
+
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+
+compras_proveedor <- detalle %>%
+  inner_join(cabecera, by = "PurchaseOrderID") %>%
+  inner_join(proveedor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name) %>%
+  summarise(TotalComprado = sum(LineTotal, na.rm = TRUE)) %>%
+  slice_max(order_by = TotalComprado, n = 10)
+
+ggplot(compras_proveedor, aes(x = TotalComprado, y = reorder(Name, TotalComprado))) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(
+    title = " Top 10 proveedores con mayor volumen de compras",
+    x = "Total comprado (Dolares en Millones)",
+    y = "Proveedor"
+  ) + scale_x_continuous(labels = label_number(scale_cut = cut_short_scale()))+
+  theme_minimal()
+```
+
+
+```{r}
+detalle <- lista_tablas$PurchaseOrderDetail
+producto_vendedor <- lista_tablas$ProductVendor
+producto <- lista_tablas$`Production.Product`
+
+
+comparacion_precios <- detalle %>%
+  inner_join(producto_vendedor, by = "ProductID") %>%
+  inner_join(producto, by = "ProductID") %>%
+  select(ProductID, ProductName = Name, PrecioReal = UnitPrice, PrecioEstandar = StandardPrice) %>%
+  mutate(Diferencia = PrecioReal - PrecioEstandar) %>%
+  arrange(ProductID) %>%
+  filter(!duplicated(select(., ProductName, Diferencia))) %>%  # Elimina duplicados con la misma diferencia y el mismo nombre
+  distinct(ProductID, .keep_all = TRUE)  # Elimina filas duplicadas basadas en ProductID
+
+View(comparacion_precios)
+```
+```{r}
+top_10_altas <- comparacion_precios %>%
+  arrange(desc(Diferencia)) %>% 
+  head(10)  
+
+top_10_bajas <- comparacion_precios %>%
+  arrange(Diferencia) %>%  
+  head(10)  
+
+print("Top 10 diferencias más altas:")
+print(top_10_altas)
+
+print("Top 10 diferencias más bajas:")
+print(top_10_bajas)
+```
+
+```{r}
+library(ggplot2)
+
+# Gráfico para las diferencias más altas
+ggplot(top_10_altas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
+  geom_bar(stat = "identity", fill = "darkred") +
+  labs(
+    title = "Top 10 Productos con la Mayor Diferencia (Precio Real - Precio Estándar)",
+    x = "Producto",
+    y = "Diferencia (Precio Real - Precio Estándar)"
+  ) +
+  coord_flip() +  # Para hacer el gráfico horizontal
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar nombres si es necesario
+
+# Gráfico para las diferencias más bajas
+ggplot(top_10_bajas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(
+    title = "Top 10 Productos con la Menor Diferencia (Precio Real - Precio Estándar)",
+    x = "Producto",
+    y = "Diferencia (Precio Real - Precio Estándar)"
+  ) +
+  coord_flip() +  # Para hacer el gráfico horizontal
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar nombres si es necesario
+
+```
+
