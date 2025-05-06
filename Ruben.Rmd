@@ -113,8 +113,8 @@ comparacion_precios <- detalle %>%
   select(ProductID, ProductName = Name, PrecioReal = UnitPrice, PrecioEstandar = StandardPrice) %>%
   mutate(Diferencia = PrecioReal - PrecioEstandar) %>%
   arrange(ProductID) %>%
-  filter(!duplicated(select(., ProductName, Diferencia))) %>%  # Elimina duplicados con la misma diferencia y el mismo nombre
-  distinct(ProductID, .keep_all = TRUE)  # Elimina filas duplicadas basadas en ProductID
+  filter(!duplicated(select(., ProductName, Diferencia))) %>%  
+  distinct(ProductID, .keep_all = TRUE) 
 
 View(comparacion_precios)
 ```
@@ -137,7 +137,7 @@ print(top_10_bajas)
 ```{r}
 library(ggplot2)
 
-# Gráfico para las diferencias más altas
+
 ggplot(top_10_altas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
   geom_bar(stat = "identity", fill = "darkred") +
   labs(
@@ -145,11 +145,11 @@ ggplot(top_10_altas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) 
     x = "Producto",
     y = "Diferencia (Precio Real - Precio Estándar)"
   ) +
-  coord_flip() +  # Para hacer el gráfico horizontal
+  coord_flip() + 
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar nombres si es necesario
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
 
-# Gráfico para las diferencias más bajas
+
 ggplot(top_10_bajas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   labs(
@@ -157,9 +157,9 @@ ggplot(top_10_bajas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) 
     x = "Producto",
     y = "Diferencia (Precio Real - Precio Estándar)"
   ) +
-  coord_flip() +  # Para hacer el gráfico horizontal
+  coord_flip() + 
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar nombres si es necesario
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
 
 ```
 
