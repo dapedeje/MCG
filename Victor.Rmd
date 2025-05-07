@@ -84,12 +84,9 @@ Calendario <- read_excel("Calendario.xlsx",
 
 #Ranking de metodos
 
+ 
 
-```{r}
-metodos
-header
 
-```
 
 
 
@@ -97,13 +94,45 @@ header
 metodos<-lista_tablas$ShipMethod
 header<- lista_tablas$PurchaseOrderHeader 
 
-ranking <-  metodos %>%
+ranking <- metodos %>%
   inner_join(header, by = "ShipMethodID") %>%
-  select(Name) %>%
-  group_by(Name)%>%
-  summarise("Total" = n()) %>%
+  select(Name, ) %>% 
+  group_by(Name) %>%
+  summarise(Total = n())%>%
   arrange(desc(Total))
 
+
+ranking
+```
+
+#Grafico
+
+```{r} 
+
+
+library(ggplot2) 
+
+
+ggplot(ranking, aes(x = reorder(Name, Total), y = Total, fill = Name)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(aes(label = Total), hjust = -0.1, size = 4) +  # etiquetas al final de la barra
+  coord_flip() +
+  labs(
+    title = "Ranking de métodos de envío más usados",
+    x = "Método de envío",
+    y = "Número total de envíos"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(hjust = 1),
+    legend.position = "none"
+  ) +
+  scale_fill_brewer(palette = "Dark2") +
+  expand_limits(y = max(ranking$Total) * 1.1)
+
+ 
 
 
 ```
@@ -116,15 +145,44 @@ ranking <-  metodos %>%
 Promedio_gasto <-  metodos %>%  
   group_by(Name)%>%
   summarise("Promedio" = mean(ShipBase + ShipRate))%>%
-  select(Name, Promedio)
+  select(Name, Promedio)%>%
+  arrange(desc(Promedio))
 
 Promedio_gasto
 ```
 
+```{r}
+ggplot(Promedio_gasto, aes(x = reorder(Name, Promedio), y = Promedio, fill = Name)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(aes(label = Promedio), hjust = -0.1, size = 4) +  # etiquetas al final de la barra
+  coord_flip() +
+  labs(
+    title = "Ranking de métodos de envío más usados",
+    x = "Método de envío",
+    y = "Número total de envíos"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(hjust = 1),
+    legend.position = "none"
+  ) +
+  scale_fill_brewer(palette = "Dark2") +
+  expand_limits(y = max(Promedio_gasto$Promedio) * 1.1)
+
+```
+ 
+
 
 ```{r}
 Promedio_tiempo<-metodos %>%  
-  inner_join(header, by = "ShipMethodID") %>%
+  inner_join(header, by = "ShipMethodID")%>%
+  mutate(
+    ShipDate = as.Date(ShipDate),   
+    OrderDate = as.Date(OrderDate)   
+  ) %>%
+  
   group_by(Name)%>%
   summarise("Promedio"=mean(ShipDate-OrderDate ))%>%
   select(Name,Promedio)
@@ -133,6 +191,9 @@ Promedio_tiempo<-metodos %>%
 
 Promedio_tiempo
 ```
+
+
+
 
  #Evolucion de cada metodo en funcion del tiempo
 
@@ -148,6 +209,32 @@ EnviosTiempo<-metodos %>%
   select(Fecha,Name,Total)
 EnviosTiempo 
 ```
+
+
+```{r}
+library(ggplot2)
+ 
+EnviosTiempo$Fecha <- as.Date(paste0(EnviosTiempo$Fecha, "-01"))
+ 
+ggplot(EnviosTiempo, aes(x = Fecha, y = Total, color = Name)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Evolución temporal de los envíos por método",
+    x = "Fecha",
+    y = "Total de envíos",
+    color = "Método de envío"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+
+
+
+```
+
+ 
 
  
 
