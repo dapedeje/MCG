@@ -1,0 +1,309 @@
+---
+title: "Cosas"
+author: "David Alejandro Pedroza De Jesús"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  pdf_document: 
+    toc: TRUE 
+  html_document:
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+lang: es
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Cargamos las librerías necesarias y borramos las variables anteriores:
+
+```{r results='hide', warning=FALSE}
+rm(list=ls())#Esto para borrar las variables anteriores
+packages = c("DBI","odbc","tidyverse","readxl","dplyr","ggplot2","lubridate")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE,
+                     repos='http://cran.rediris.es')
+  }
+  library(x, character.only = TRUE)
+})
+```
+
+hacemos una conexión con nuestra base de datos.
+
+```{r}
+con <- dbConnect(odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server",  
+                 Server   = "LAPTOP-VJGSMCQF\\JOEL_BISS",
+                 Database = "AdventureWorks2016_EXT",
+                 Trusted_Connection = "Yes")
+```
+
+Buscamos las tablas del esquema que coinciden con nuestra base de datos
+
+```{r}
+Tablas_T <- dbListTables(con)
+
+Tabla_comp <- Tablas_T[startsWith(Tablas_T,"Purchase")]
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp
+```
+
+```{r}
+lista_tablas <- list()
+for(i in 1:length(Tabla_comp)){
+  consulta <- paste0("SELECT * FROM Purchasing.",Tabla_comp[i])
+  lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r, warning=FALSE}
+Calendario <- read_excel("Calendario.xlsx", 
+    col_types = c("numeric", "date", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "text", "text", "text", 
+        "text", "text", "text", "text", "date", 
+        "date", "date", "date", "date", "date", 
+        "date", "date", "numeric", "date", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text"))
+```
+
+```{r}
+head(Calendario)
+```
+
+
+
+```{r}
+# Lista de nombres de tablas que quieres explorar
+tablas_interes <- c(
+  "PurchaseOrderDetail",
+  "PurchaseOrderHeader",
+  "ProductVendor",
+  "ShipMethod",
+  "Vendor",
+  "vVendorWithAddresses",
+  "vVendorWithContacts",
+  "HumanResources.Employee",
+  "Production.Product",
+  "Production.UnitMeasure",
+  "Person.BusinessEntity"
+)
+
+# Mostrar los nombres de todas las tablas disponibles
+cat("------------------------------\n")
+cat("**lista_names**\n")
+print(names(lista_tablas))
+
+# Mostrar los nombres de las columnas de cada tabla de interés
+for (nombre_tabla in tablas_interes) {
+  cat("------------------------------\n")
+  cat(paste0("**", nombre_tabla, "**\n"))
+  print(names(lista_tablas[[nombre_tabla]]))
+}
+
+```
+
+
+
+```{r}
+names(Calendario)
+```
+
+```{r}
+# Unimos encabezados de órdenes con calendario
+compras <- lista_tablas$PurchaseOrderHeader %>%
+  select(PurchaseOrderID, VendorID, OrderDate, TotalDue) %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha"))
+
+```
+
+
+2. Evolución de las compras en el tiempo
+a. Evolución mensual:
+
+
+```{r}
+evolucion_mensual <- compras %>%
+  group_by(`Año`, `Mes Num`, `Mes Largo - Año`) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, `Mes Num`) %>%
+  mutate(MesOrdenado = factor(`Mes Largo - Año`, levels = unique(`Mes Largo - Año`)))
+
+ggplot(evolucion_mensual, aes(x = MesOrdenado, y = Total)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Evolución mensual del gasto en compras",
+       x = "Mes",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+b. Evolución trimestral:
+```{r}
+
+evolucion_trimestral <- compras %>%
+  group_by(`Año`, `Trimestre Num`, `Trimestre`) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, `Trimestre Num`) %>%
+  mutate(TrimestreOrdenado = factor(paste(Trimestre, Año), 
+                                    levels = unique(paste(Trimestre, Año))))
+
+
+ggplot(evolucion_trimestral, aes(x = TrimestreOrdenado, y = Total)) +
+  geom_col(fill = "darkgreen") +
+  labs(title = "Evolución trimestral del gasto en compras",
+       x = "Trimestre",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+evolucion_trimestral <- compras %>%
+  group_by(`Trimestre`, `Año`) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, Trimestre) %>%
+  mutate(Periodo = paste0("T", Trimestre, "-", Año),
+         Periodo = factor(Periodo, levels = unique(Periodo)))
+
+ggplot(evolucion_trimestral, aes(x = Periodo, y = Total)) +
+  geom_line(group = 1, color = "darkred") +
+  geom_point(color = "red") +
+  labs(title = "Evolución trimestral de compras",
+       x = "Trimestre",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+3. Frecuencia de órdenes por período
+Podemos también analizar cuántas órdenes se emiten por mes, no solo el total económico:
+
+```{r}
+frecuencia_mensual <- compras %>%
+  group_by(`Mes Largo - Año`, `Año`, `Mes Num`) %>%
+  summarise(Ordenes = n(), .groups = "drop") %>%
+  arrange(Año, `Mes Num`) %>%
+  mutate(`Mes Largo - Año` = factor(`Mes Largo - Año`, levels = unique(`Mes Largo - Año`)))
+
+ggplot(frecuencia_mensual, aes(x = `Mes Largo - Año`, y = Ordenes)) +
+  geom_col(fill = "darkgreen") +
+  labs(title = "Cantidad de órdenes emitidas por mes",
+       x = "Mes",
+       y = "Número de órdenes") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+
+
+4. Proveedores más importantes por monto total
+
+```{r}
+top_proveedores <- compras %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name) %>%
+  summarise(TotalComprado = sum(TotalDue)) %>%
+  arrange(desc(TotalComprado)) %>%
+  head(10)
+
+ggplot(top_proveedores, aes(x = reorder(Name, TotalComprado), y = TotalComprado)) +
+  geom_col(fill = "orange") +
+  coord_flip() +
+  labs(title = "Top 10 proveedores por volumen de compras",
+       x = "Proveedor",
+       y = "Total comprado")
+
+```
+
+Podrias cojer los top 3 y desplegar para ver cuales son los productos que venden ordenados de más vendido a menos.
+
+
+Tambien quiero un ranking pero en vez de por volumen por cantidad de dinero ganada
+
+
+
+
+```{r}
+# Top 3 proveedores por total comprado (AUN NO FUNCIONA!!)
+top3_proveedores <- compras %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(VendorID, Proveedor = Name) %>%
+  summarise(TotalComprado = sum(TotalDue), .groups = "drop") %>%
+  arrange(desc(TotalComprado)) %>%
+  slice_head(n = 3)
+
+
+compras
+
+lista_tablas$Production.Product
+productos_top3 <- compras %>%
+  filter(VendorID %in% top3_proveedores$VendorID) %>%
+  left_join(lista_tablas$PurchaseOrderDetail , by = c("PurchaseOrderID" = "PurchaseOrderID")) %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name, ProductID) %>% 
+  summarise(TotalComprado = sum(TotalDue)) %>%
+  arrange(Name, desc(TotalComprado))
+productos_top3
+
+# Gráfico
+ggplot(productos_top3, aes(x = reorder(ProductID, TotalComprado), y = TotalComprado, fill = Name)) +
+  geom_col(show.legend = TRUE) +
+  facet_wrap(~ Name, scales = "free_y") +
+  coord_flip() +
+  labs(title = "Productos más comprados a los Top 3 proveedores",
+       x = "Producto",
+       y = "Total comprado (€)",
+       fill = "Proveedor")
+
+productos_top3
+
+```
+
+
+
+
+
+```{r}
+ranking_monto <- compras %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name) %>%
+  summarise(TotalGanado = sum(TotalDue), .groups = "drop") %>%
+  arrange(desc(TotalGanado))
+
+ggplot(ranking_monto[1:10, ], aes(x = reorder(Name, TotalGanado), y = TotalGanado)) +
+  geom_col(fill = "darkblue") +
+  coord_flip() +
+  labs(title = "Top 10 proveedores por dinero ganado",
+       x = "Proveedor",
+       y = "Total ganado")
+
+```
+
+
+
