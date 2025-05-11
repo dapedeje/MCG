@@ -97,3 +97,211 @@ head(Calendario)
 
 
 
+
+
+
+
+
+#Ranking de metodos de envio mas usados
+
+
+```{r}
+metodos<-lista_tablas$ShipMethod
+header<- lista_tablas$PurchaseOrderHeader 
+
+ranking <- metodos %>%
+  inner_join(header, by = "ShipMethodID") %>%
+  select(Name, ) %>% 
+  group_by(Name) %>%
+  summarise(Total = n())%>%
+  arrange(desc(Total))%>%
+  mutate(pctj=round((Total/sum(Total))*100,2))
+
+
+ranking
+```
+
+#Indice Gini
+```{r}
+c1 <- rev(ranking$Total)
+c2 <- c1 / sum(c1)
+ 
+x <- c(0, seq(0.20, 1, 0.20))  
+y <- c(0, cumsum(c2))          
+ 
+area <- sum((y[-1] + y[-length(y)]) * diff(x))  
+gini <- 1 - area
+ 
+print(gini)
+```
+
+El indice de Gini muestra una desigualdad moderada entre el numero de envios que se realiza con cada metodo, como se puede ver en el grafico de despues.
+
+#Grafico
+
+```{r} 
+
+
+library(ggplot2) 
+
+
+ggplot(ranking, aes(x = reorder(Name, Total), y = Total, fill = Name)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(aes(label = Total), hjust = -0.1, size = 4) +  # etiquetas al final de la barra
+  coord_flip() +
+  labs(
+    title = "Ranking de métodos de envío más usados",
+    x = "Método de envío",
+    y = "Número total de envíos"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(hjust = 1),
+    legend.position = "none"
+  ) +
+  scale_fill_brewer(palette = "Dark2") +
+  expand_limits(y = max(ranking$Total) * 1.1)
+
+ 
+
+
+```
+ 
+Mas del 60% de envios son realizados mediante dos metodos, mientras que OVERSEAS DELUXE unicamente realiza el 4%, hay cierta desigualdad entre los metodos de envio usados como se muestra con el indice de Gini (0.3212363)
+
+
+
+#Precio total de las tarifas de cada metodo
+
+
+```{r}
+Promedio_tarifas <-  metodos %>%  
+  group_by(Name)%>%
+  summarise("Promedio" = mean(ShipBase + ShipRate))%>%
+  select(Name, Promedio)%>%
+  arrange(desc(Promedio))
+
+Promedio_tarifas
+```
+
+
+
+#Indice Gini
+```{r}
+c1 <- rev(Promedio_tarifas$Promedio)
+c2 <- c1 / sum(c1)
+ 
+x <- c(0, seq(0.20, 1, 0.20))  
+y <- c(0, cumsum(c2))          
+ 
+area <- sum((y[-1] + y[-length(y)]) * diff(x))  
+gini <- 1 - area
+ 
+print(gini)
+```
+
+
+```{r}
+ggplot(Promedio_tarifas, aes(x = reorder(Name, Promedio), y = Promedio, fill = Name)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_text(aes(label = Promedio), hjust = -0.1, size = 4) +  # etiquetas al final de la barra
+  coord_flip() +
+  labs(
+    title = "Ranking de tarifas mas caras",
+    x = "Método de envío",
+    y = "Precio tarifa"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.title.y = element_blank(),
+    axis.text.y = element_text(hjust = 1),
+    legend.position = "none"
+  ) +
+  scale_fill_brewer(palette = "Dark2") +
+  expand_limits(y = max(Promedio_tarifas$Promedio) * 1.1)
+
+```
+En este análisis, se observa que el método "OVERSEAS - DELUXE" tiene las tarifas más altas con diferencia. Esta puede ser debido a que, como su nombre indica, ofrece un servicio de envío de lujo, lo cual tambien justifica que sea el metodo que menos envios realiza con diferencia. 
+
+Es curioso el caso de XRQ TRUCK GROUND ya que es el metodo con tarifas mas baratas con diferencia y quitando a OVERSEAS - DELUXE es el que menos envios realiza, probablemente se trate de una empresa pequeña o que este empezando, bajando sus tarifas para obtener una mejor posicion en el mercado.
+
+
+
+
+#Promedio tiempo de entrega de cada grafico
+
+```{r}
+Promedio_tiempo<-metodos %>%  
+  inner_join(header, by = "ShipMethodID")%>%
+  mutate(
+    ShipDate = as.Date(ShipDate),   
+    OrderDate = as.Date(OrderDate)   
+  ) %>%
+  
+  group_by(Name)%>%
+  summarise("Promedio"=mean(ShipDate-OrderDate ))%>%
+  select(Name,Promedio)
+d<-header$ShipDate-header$OrderDate  
+unique(d)
+sum(d==25)
+sum(d==9)
+length(d)
+Promedio_tiempo
+```
+Al calcular el promedio de los 4000 tiempos de envio se observa que todas las entregas son en nueve dias excepto 12, del metodo "OVERSEAS - DELUXE" que tardaron 25 dias, lo cual es extraño teniendo en cuenta que es el metodo mas caro. Esto probablemente sea un indicativo de un error al introducir los datos, o puede que no sean fechas reales y se hayan generado artificialmente.
+
+
+
+ #Evolucion del numero de envios por metodo en funcion del tiempo
+
+
+```{r}
+library(lubridate)
+EnviosTiempo<-metodos %>%  
+  inner_join(header, by = "ShipMethodID") %>%
+  mutate( "Fecha"= format(OrderDate, "%Y-%m"))%>%
+  group_by(Fecha, Name)%>%
+  summarise("Total" = n()) %>%
+  arrange(Fecha,Name)%>%
+  select(Fecha,Name,Total)
+EnviosTiempo 
+```
+
+
+```{r}
+library(ggplot2)
+ 
+EnviosTiempo$Fecha <- as.Date(paste0(EnviosTiempo$Fecha, "-01"))
+ 
+ggplot(EnviosTiempo, aes(x = Fecha, y = Total, color = Name)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Evolución temporal de los envíos por método",
+    x = "Fecha",
+    y = "Total de envíos",
+    color = "Método de envío"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "left"
+  )
+
+
+
+```
+
+ 
+Como se aprecia en la gráfica, a mediados de 2013 la cantidad de envíos se dispara y, a partir de ese momento, los métodos pueden agruparse en tres categorías:
+
+Cargo Transport 5 y Overnight J-Fast: crecen de forma drástica, pasando de apenas 15 envíos al mes a más de 100.
+
+XRQ – Truck Ground y ZY-Express: también experimentan un fuerte aumento, aunque más moderado, alcanzando unos 50 envíos mensuales.
+
+Overseas – Deluxe: a diferencia del resto, su número de envíos apenas se incrementa.
+
+Este repentino aumento podría explicarse por el auge del comercio electrónico en ese periodo o por una campaña concreta. Tras el pico, el volumen de envíos cae notablemente —tal vez por un fallo logístico— antes de retomar de nuevo su tendencia al alza. En 2014 vuelve a haber una bajada drastica por las mismas fechas, en verano, quizas las empresas bajan su produccion en esta epoca debido a la falta de demanda o de trabajadores.
+ 
