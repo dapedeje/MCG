@@ -97,6 +97,8 @@ Calendario <- read_excel("Calendario.xlsx",
 ```{r}
 TablaHechosDetalle <- lista_tablas$PurchaseOrderDetail
 TablaProducto <- lista_tablas$Production.Product
+TablaDeHechos <- lista_tablas$PurchaseOrderHeader
+
 ```
 
 Los 10 productos más vendidos.
