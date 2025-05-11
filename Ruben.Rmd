@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 rm(list=ls())#Esto para borrar las variables anteriores
-packages = c("DBI","odbc","tidyverse","readxl")
+packages = c("DBI","odbc","tidyverse","readxl","scales")
 package.check <- lapply(packages, FUN = function(x) {
   if (!require(x, character.only = TRUE)) {
     install.packages(x, dependencies = TRUE,
@@ -19,6 +19,8 @@ package.check <- lapply(packages, FUN = function(x) {
   library(x, character.only = TRUE)
 })
 ```
+
+
 
 
 ```{r}
@@ -82,84 +84,172 @@ Calendario <- read_excel("Calendario.xlsx",
 library(dplyr)
 library(ggplot2)
 
+detalle <- lista_tablas$PurchaseOrderDetail
+proveedor <- lista_tablas$ProductVendor
+producto <- lista_tablas$`Production.Product`
+cabecera <- lista_tablas$PurchaseOrderHeader
+nombreproveedor<-lista_tablas$Vendor
 
-compras_proveedor <- detalle %>%
+```
+
+```{r}
+library(forcats)
+```
+
+
+```{r}
+compras_proveedor_anual <- detalle %>%
   inner_join(cabecera, by = "PurchaseOrderID") %>%
-  inner_join(proveedor, by = c("VendorID" = "BusinessEntityID")) %>%
-  group_by(Name) %>%
-  summarise(TotalComprado = sum(LineTotal, na.rm = TRUE)) %>%
-  slice_max(order_by = TotalComprado, n = 10)
+  inner_join(Calendario, by = c("OrderDate" = "Fecha")) %>%  # Join con calendario
+  inner_join(nombreproveedor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Año, Name) %>%
+  summarise(TotalComprado = sum(LineTotal, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Año) %>%
+  slice_max(order_by = TotalComprado, n = 10)  # Top 10 por año
 
-ggplot(compras_proveedor, aes(x = TotalComprado, y = reorder(Name, TotalComprado))) +
+
+
+ggplot(compras_proveedor_anual, aes(
+  x = TotalComprado,
+  y = fct_reorder2(Name, Año, TotalComprado)
+)) +
   geom_bar(stat = "identity", fill = "steelblue") +
+  facet_wrap(~ Año, scales = "free_y") +
   labs(
-    title = " Top 10 proveedores con mayor volumen de compras",
-    x = "Total comprado (Dolares en Millones)",
+    title = "Top 10 proveedores con mayor volumen de compras por año",
+    x = "Total comprado (Dólares en millones)",
     y = "Proveedor"
-  ) + scale_x_continuous(labels = label_number(scale_cut = cut_short_scale()))+
+  ) +
+  scale_x_continuous(labels = label_number(scale_cut = cut_short_scale())) +
   theme_minimal()
 ```
 
 
+
+
 ```{r}
-detalle <- lista_tablas$PurchaseOrderDetail
-producto_vendedor <- lista_tablas$ProductVendor
-producto <- lista_tablas$`Production.Product`
+
+compras_proveedor_anual$Año <- as.numeric(compras_proveedor_anual$Año)
 
 
-comparacion_precios <- detalle %>%
-  inner_join(producto_vendedor, by = "ProductID") %>%
+anios <- sort(unique(compras_proveedor_anual$Año))
+
+
+graficar_por_anio <- function(data, anio) {
+  ggplot(filter(data, Año == anio),
+         aes(x = TotalComprado, y = reorder(Name, TotalComprado))) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(
+      title = paste("Top 10 proveedores en", anio),
+      x = "Total comprado (Dólares en millones)",
+      y = "Proveedor"
+    ) +
+    scale_x_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+    theme_minimal()
+}
+
+
+grafico_2011 <- graficar_por_anio(compras_proveedor_anual, 2011)
+grafico_2012 <- graficar_por_anio(compras_proveedor_anual, 2012)
+grafico_2013 <- graficar_por_anio(compras_proveedor_anual, 2013)
+grafico_2014 <- graficar_por_anio(compras_proveedor_anual, 2014)
+
+grafico_2011
+grafico_2012
+grafico_2013
+grafico_2014
+```
+
+```{r}
+top3_nombres <- compras_proveedor_anual %>%
+  filter(Name %in% c("Chicago City Saddles", 
+                     "Superior Bicycles", 
+                     "Professional Athletic Consultants"))
+
+totales_anuales <- compras_proveedor_anual %>%
+  group_by(Año) %>%
+  summarise(TotalAnual = sum(TotalComprado), .groups = "drop")
+
+top3_indices <- top3_nombres %>%
+  left_join(totales_anuales, by = "Año") %>%
+  arrange(Name, Año) %>%
+  group_by(Name) %>%
+  mutate(
+    Participacion = TotalComprado / TotalAnual * 100,
+    GastoAnterior = lag(TotalComprado),
+    TasaCrecimiento = (TotalComprado - GastoAnterior) / GastoAnterior * 100,
+    Base = first(TotalComprado),
+    IndiceBase100 = TotalComprado / Base * 100
+  ) %>%
+  ungroup() %>%
+
+  select(Año,Name,TotalAnual, Participacion, TasaCrecimiento,IndiceBase100)
+```
+
+```{r}
+top3_indices
+```
+
+
+Indicador 2 Comparacion de precios de los precios estandar (precio esperado) con el precio real 
+
+
+
+
+```{r}
+comparacion_precios_anual <- detalle %>%
+  inner_join(cabecera, by = "PurchaseOrderID") %>%
+  inner_join(proveedor, by = "ProductID") %>%
   inner_join(producto, by = "ProductID") %>%
-  select(ProductID, ProductName = Name, PrecioReal = UnitPrice, PrecioEstandar = StandardPrice) %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha")) %>%
+  select(Año, ProductID, ProductName = Name, PrecioReal = UnitPrice, PrecioEstandar = StandardPrice) %>%
   mutate(Diferencia = PrecioReal - PrecioEstandar) %>%
-  arrange(ProductID) %>%
-  filter(!duplicated(select(., ProductName, Diferencia))) %>%  
-  distinct(ProductID, .keep_all = TRUE) 
-
-View(comparacion_precios)
-```
-```{r}
-top_10_altas <- comparacion_precios %>%
-  arrange(desc(Diferencia)) %>% 
-  head(10)  
-
-top_10_bajas <- comparacion_precios %>%
-  arrange(Diferencia) %>%  
-  head(10)  
-
-print("Top 10 diferencias más altas:")
-print(top_10_altas)
-
-print("Top 10 diferencias más bajas:")
-print(top_10_bajas)
+  filter(!is.na(Año)) %>%
+  group_by(Año, ProductID, ProductName) %>%
+  summarise(DiferenciaPromedio = mean(Diferencia, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Año, desc(DiferenciaPromedio))
 ```
 
 ```{r}
-library(ggplot2)
 
+top_altas_anual <- comparacion_precios_anual %>%
+  group_by(Año) %>%
+  slice_max(order_by = DiferenciaPromedio, n = 10) %>%
+  ungroup()
 
-ggplot(top_10_altas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
+top_bajas_anual <- comparacion_precios_anual %>%
+  group_by(Año) %>%
+  slice_min(order_by = DiferenciaPromedio, n = 10) %>%
+  ungroup()
+```
+
+```{r}
+
+ggplot(top_altas_anual, aes(x = reorder(ProductName, DiferenciaPromedio), y = DiferenciaPromedio)) +
   geom_bar(stat = "identity", fill = "darkred") +
+  facet_wrap(~ Año, scales = "free_y") +
   labs(
-    title = "Top 10 Productos con la Mayor Diferencia (Precio Real - Precio Estándar)",
+    title = "Top Productos con precio real muy Superior al estándar por año",
     x = "Producto",
-    y = "Diferencia (Precio Real - Precio Estándar)"
+    y = "Diferencia Promedio"
   ) +
-  coord_flip() + 
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+  coord_flip() +
+  theme_minimal()
 
-
-ggplot(top_10_bajas, aes(x = reorder(ProductName, Diferencia), y = Diferencia)) +
+ggplot(top_bajas_anual, aes(x = reorder(ProductName, DiferenciaPromedio), y = DiferenciaPromedio)) +
   geom_bar(stat = "identity", fill = "steelblue") +
+  facet_wrap(~ Año, scales = "free_y") +
   labs(
-    title = "Top 10 Productos con la Menor Diferencia (Precio Real - Precio Estándar)",
+    title = "Top Productos con precio real muy inferior al estándar por año",
     x = "Producto",
-    y = "Diferencia (Precio Real - Precio Estándar)"
+    y = "Diferencia Promedio"
   ) +
-  coord_flip() + 
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
-
+  coord_flip() +
+  theme_minimal()
 ```
+
+
+
+
+La unica conclusion que podemos sacar es que respecto a esto es que tanto como los pedales como los frenos los estamos comprando todos los años a un precio mayor del esperado, esto puede deberse a que el precio esperado esta mal calculado o estamos pagando mas de lo que deberiamos en estas compras. Tambien que en el ultimo año es cuando hay mas cambios entre los precios esperado y los precios reales   
 
