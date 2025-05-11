@@ -105,6 +105,22 @@ ranking <- metodos %>%
 ranking
 ```
 
+#Indice Gini
+```{r}
+c1 <- rev(ranking$Total)
+c2 <- c1 / sum(c1)
+ 
+x <- c(0, seq(0.20, 1, 0.20))  
+y <- c(0, cumsum(c2))          
+ 
+area <- sum((y[-1] + y[-length(y)]) * diff(x))  
+gini <- 1 - area
+ 
+print(gini)
+```
+
+Este indice de Gini muestra una desigualdad moderada entre el numero de envios que se realiza con cada metodo, como se puede ver en el grafico de despues.
+
 #Grafico
 
 ```{r} 
@@ -136,30 +152,46 @@ ggplot(ranking, aes(x = reorder(Name, Total), y = Total, fill = Name)) +
 
 
 ```
-
  
 
 
 
 ```{r}
-Promedio_gasto <-  metodos %>%  
+Promedio_tarifas <-  metodos %>%  
   group_by(Name)%>%
   summarise("Promedio" = mean(ShipBase + ShipRate))%>%
   select(Name, Promedio)%>%
   arrange(desc(Promedio))
 
-Promedio_gasto
+Promedio_tarifas
 ```
 
+
+
+#Indice Gini
 ```{r}
-ggplot(Promedio_gasto, aes(x = reorder(Name, Promedio), y = Promedio, fill = Name)) +
+c1 <- rev(Promedio_tarifas$Promedio)
+c2 <- c1 / sum(c1)
+ 
+x <- c(0, seq(0.20, 1, 0.20))  
+y <- c(0, cumsum(c2))          
+ 
+area <- sum((y[-1] + y[-length(y)]) * diff(x))  
+gini <- 1 - area
+ 
+print(gini)
+```
+
+
+```{r}
+ggplot(Promedio_tarifas, aes(x = reorder(Name, Promedio), y = Promedio, fill = Name)) +
   geom_bar(stat = "identity", color = "black") +
   geom_text(aes(label = Promedio), hjust = -0.1, size = 4) +  # etiquetas al final de la barra
   coord_flip() +
   labs(
-    title = "Ranking de métodos de envío más usados",
+    title = "Ranking de tarifas mas caras",
     x = "Método de envío",
-    y = "Número total de envíos"
+    y = "Precio tarifa"
   ) +
   theme_minimal(base_size = 14) +
   theme(
@@ -169,10 +201,12 @@ ggplot(Promedio_gasto, aes(x = reorder(Name, Promedio), y = Promedio, fill = Nam
     legend.position = "none"
   ) +
   scale_fill_brewer(palette = "Dark2") +
-  expand_limits(y = max(Promedio_gasto$Promedio) * 1.1)
+  expand_limits(y = max(Promedio_tarifas$Promedio) * 1.1)
 
 ```
- 
+En el análisis de los diferentes métodos de envío, se observa que el método "OVERSEAS - DELUXE" tiene las tarifas más altas, tanto en su tarifa base como en el costo adicional por unidad. Esta diferencia en los precios coincide con el nombre del servicio, que sugiere un servicio de envío de lujo, lo cual justifica que sea el metodo que menos envios realiza con diferencia. 
+
+Es curioso el caso de XRQ TRUCK GROUND ya que es el metodo con tarifas mas baratas con diferencia y quitando a OVERSEAS - DELUXE es el que menos envios realiza, probablemente se trate de una empresa pequeña o que este empezando.
 
 
 ```{r}
@@ -186,12 +220,14 @@ Promedio_tiempo<-metodos %>%
   group_by(Name)%>%
   summarise("Promedio"=mean(ShipDate-OrderDate ))%>%
   select(Name,Promedio)
-  
-
-
+d<-header$ShipDate-header$OrderDate  
+unique(d)
+sum(d==25)
+sum(d==9)
+length(d)
 Promedio_tiempo
 ```
-
+Al calcular el promedio de los tiempos de envio se observa que todas las entregas son en nueve dias excepto 12, del metodo "OVERSEAS - DELUXE" que tardaron 25 dias, lo cual es extraño teniendo en cuenta que es el metodo mas caro.
 
 
 
@@ -227,7 +263,7 @@ ggplot(EnviosTiempo, aes(x = Fecha, y = Total, color = Name)) +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "bottom"
+    legend.position = "left"
   )
 
 
@@ -235,6 +271,6 @@ ggplot(EnviosTiempo, aes(x = Fecha, y = Total, color = Name)) +
 ```
 
  
-
+Como se observa en la grafica, a mitad de 2013 se disparan los envios de todos los metodos, excepto los de OVERSEAS DELUXE, tambien poco despues en ese mismo año hay una caida importante seguida de otra subida aun mayor.
  
 
