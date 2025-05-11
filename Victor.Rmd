@@ -83,6 +83,9 @@ Calendario <- read_excel("Calendario.xlsx",
 
 
 #Ranking de metodos
+```{r}
+Calendario
+```
 
  
 
@@ -99,7 +102,8 @@ ranking <- metodos %>%
   select(Name, ) %>% 
   group_by(Name) %>%
   summarise(Total = n())%>%
-  arrange(desc(Total))
+  arrange(desc(Total))%>%
+  mutate(pctj=round((Total/sum(Total))*100,2))
 
 
 ranking
@@ -153,6 +157,7 @@ ggplot(ranking, aes(x = reorder(Name, Total), y = Total, fill = Name)) +
 
 ```
  
+Mas del 60% de envios son realizados mediante dos metodos, mientras que OVERSEAS DELUXE unicamente realiza el 4%, hay cierta desigualdad entre los metodos de envio usados como se muestra con el indice de Gini (0.3212363)
 
 
 
@@ -204,9 +209,9 @@ ggplot(Promedio_tarifas, aes(x = reorder(Name, Promedio), y = Promedio, fill = N
   expand_limits(y = max(Promedio_tarifas$Promedio) * 1.1)
 
 ```
-En el análisis de los diferentes métodos de envío, se observa que el método "OVERSEAS - DELUXE" tiene las tarifas más altas, tanto en su tarifa base como en el costo adicional por unidad. Esta diferencia en los precios coincide con el nombre del servicio, que sugiere un servicio de envío de lujo, lo cual justifica que sea el metodo que menos envios realiza con diferencia. 
+En este análisis, se observa que el método "OVERSEAS - DELUXE" tiene las tarifas más altas con diferencia. Esta puede ser debido a que, como su nombre indica, ofrece un servicio de envío de lujo, lo cual tambien justifica que sea el metodo que menos envios realiza con diferencia. 
 
-Es curioso el caso de XRQ TRUCK GROUND ya que es el metodo con tarifas mas baratas con diferencia y quitando a OVERSEAS - DELUXE es el que menos envios realiza, probablemente se trate de una empresa pequeña o que este empezando.
+Es curioso el caso de XRQ TRUCK GROUND ya que es el metodo con tarifas mas baratas con diferencia y quitando a OVERSEAS - DELUXE es el que menos envios realiza, probablemente se trate de una empresa pequeña o que este empezando, bajando sus tarifas para obtener una mejor posicion en el mercado.
 
 
 ```{r}
@@ -227,7 +232,7 @@ sum(d==9)
 length(d)
 Promedio_tiempo
 ```
-Al calcular el promedio de los tiempos de envio se observa que todas las entregas son en nueve dias excepto 12, del metodo "OVERSEAS - DELUXE" que tardaron 25 dias, lo cual es extraño teniendo en cuenta que es el metodo mas caro.
+Al calcular el promedio de los 4000 tiempos de envio se observa que todas las entregas son en nueve dias excepto 12, del metodo "OVERSEAS - DELUXE" que tardaron 25 dias, lo cual es extraño teniendo en cuenta que es el metodo mas caro. Esto probablemente sea un indicativo de un error al introducir los datos, o puede que no sean fechas reales y se hayan generado artificialmente.
 
 
 
@@ -271,6 +276,14 @@ ggplot(EnviosTiempo, aes(x = Fecha, y = Total, color = Name)) +
 ```
 
  
-Como se observa en la grafica, a mitad de 2013 se disparan los envios de todos los metodos, excepto los de OVERSEAS DELUXE, tambien poco despues en ese mismo año hay una caida importante seguida de otra subida aun mayor.
+Como se aprecia en la gráfica, a mediados de 2013 la cantidad de envíos se dispara y, a partir de ese momento, los métodos pueden agruparse en tres categorías:
+
+Cargo Transport 5 y Overnight J-Fast: crecen de forma drástica, pasando de apenas 15 envíos al mes a más de 100.
+
+XRQ – Truck Ground y ZY-Express: también experimentan un fuerte aumento, aunque más moderado, alcanzando unos 50 envíos mensuales.
+
+Overseas – Deluxe: a diferencia del resto, su número de envíos apenas se incrementa.
+
+Este repentino aumento podría explicarse por el auge del comercio electrónico en ese periodo o por una campaña concreta. Tras el pico, el volumen de envíos cae notablemente —tal vez por un fallo logístico— antes de retomar de nuevo su tendencia al alza. En 2014 vuelve a haber una bajada drastica por las mismas fechas, en verano, quizas las empresas bajan su produccion en esta epoca debido a la falta de demanda o de trabajadores.
  
 
