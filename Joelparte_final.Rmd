@@ -1,0 +1,489 @@
+---
+title: "MCG"
+author: "Joel"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: 
+    toc: TRUE 
+editor_options: 
+  markdown: 
+    wrap: 72
+lang: es
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Cargamos las librerías necesarias y borramos las variables anteriores:
+
+```{r results='hide', warning=FALSE}
+rm(list=ls())#Esto para borrar las variables anteriores
+packages = c("DBI","odbc","tidyverse","readxl","dplyr","ggplot2","lubridate")
+package.check <- lapply(packages, FUN = function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = TRUE,
+                     repos='http://cran.rediris.es')
+  }
+  library(x, character.only = TRUE)
+})
+```
+
+hacemos una conexión con nuestra base de datos.
+
+```{r}
+con <- dbConnect(odbc(),
+                 Driver   = "ODBC Driver 17 for SQL Server",  
+                 Server   = "LAPTOP-VJGSMCQF\\JOEL_BISS",
+                 Database = "AdventureWorks2016_EXT",
+                 Trusted_Connection = "Yes")
+```
+
+Buscamos las tablas del esquema que coinciden con nuestra base de datos
+
+```{r}
+Tablas_T <- dbListTables(con)
+
+Tabla_comp <- Tablas_T[startsWith(Tablas_T,"Purchase")]
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ProductVendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "ShipMethod"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[Tablas_T == "Vendor"])
+Tabla_comp <- c(Tabla_comp, Tablas_T[startsWith(Tablas_T,"vVendorWith")])
+Tabla_comp
+```
+
+```{r}
+lista_tablas <- list()
+for(i in 1:length(Tabla_comp)){
+  consulta <- paste0("SELECT * FROM Purchasing.",Tabla_comp[i])
+  lista_tablas[[Tabla_comp[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r}
+tablas_noPur <- c("HumanResources.Employee","Production.Product", "Production.UnitMeasure", "Person.BusinessEntity")
+
+for(i in 1:length(tablas_noPur)){
+  consulta <- paste0("SELECT * FROM ",tablas_noPur[i])
+  lista_tablas[[tablas_noPur[i]]] <- dbGetQuery(con, consulta)
+}
+```
+
+```{r, warning=FALSE}
+Calendario <- read_excel("Calendario.xlsx", 
+    col_types = c("numeric", "date", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "text", "text", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "text", "text", "text", 
+        "text", "text", "text", "text", "date", 
+        "date", "date", "date", "date", "date", 
+        "date", "date", "numeric", "date", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "text", "text"))
+```
+
+```{r}
+head(Calendario)
+```
+
+ 
+
+ 
+
+```{r}
+# Unimos encabezados de órdenes con calendario
+compras <- lista_tablas$PurchaseOrderHeader %>%
+  select(PurchaseOrderID, VendorID, OrderDate, TotalDue) %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha"))
+
+```
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(tidyr)
+library(DescTools)
+```
+
+
+2. Evolución de las compras en el tiempo
+
+
+
+a. Evolución mensual:
+
+
+Este código procesa datos de compras para mostrar cómo ha evolucionado el gasto mes a mes. 
+
+Primero, toma los datos originales y los agrupa por año y mes, calculando el total gastado en cada período. Luego ordena estos resultados cronológicamente y asegura que los meses se muestren en el orden correcto al convertirlos en categorías organizadas. 
+
+```{r}
+evolucion_mensual <- compras %>%
+  group_by(`Año`, `Mes Num`, `Mes Largo - Año`) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, `Mes Num`) %>%
+  mutate(MesOrdenado = factor(`Mes Largo - Año`, levels = unique(`Mes Largo - Año`)))
+```
+
+
+
+
+
+```{r}
+ggplot(evolucion_mensual, aes(x = MesOrdenado, y = Total, group = 1)) +
+  geom_line(color = "steelblue", size = 1) +
+  labs(title = "Evolución mensual del gasto en compras",
+       x = "Mes",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+Cojemos una tabla con valores del IPD (Índice de Precios al Distribuidor) desde abril 2011 hasta septiembre 2014, sacada del [INE](https://www.ine.es/jaxiT3/Tabla.htm?t=24077)
+
+
+```{r}
+
+ipd_values <- data.frame(
+  Fecha = c("2011M04", "2011M05", "2011M06", "2011M07", "2011M08", "2011M09", "2011M10", "2011M11", "2011M12",
+            "2012M01", "2012M02", "2012M03", "2012M04", "2012M05", "2012M06", "2012M07", "2012M08", "2012M09", 
+            "2012M10", "2012M11", "2012M12", "2013M01", "2013M02", "2013M03", "2013M04", "2013M05", "2013M06", 
+            "2013M07", "2013M08", "2013M09", "2013M10", "2013M11", "2013M12", "2014M01", "2014M02", "2014M03", 
+            "2014M04", "2014M05", "2014M06", "2014M07", "2014M08", "2014M09"),
+  IPD = c(90.871, 90.841, 90.713, 90.226, 90.338, 90.559, 91.273, 91.643, 91.762,
+          90.753, 90.847, 91.458, 92.743, 92.606, 92.433, 92.217, 92.736, 93.649,
+          94.445, 94.328, 94.394, 93.188, 93.349, 93.678, 94.028, 94.201, 94.340,
+          93.853, 94.145, 93.969, 94.351, 94.547, 94.632, 93.373, 93.333, 93.541,
+          94.373, 94.395, 94.421, 93.533, 93.681, 93.824)
+)
+
+# Convertir a "Mes Largo - Año"
+ipd_values$FechaCompleta <- as.Date(paste0(substr(ipd_values$Fecha, 1, 4), "-", substr(ipd_values$Fecha, 6, 7), "-01"))
+ipd_values$`Mes Largo - Año` <- format(ipd_values$FechaCompleta, "%B %Y")
+# Transformo las fechas a un formato más legible como "Abril 2011", convirtiendo el texto a minúsculas para que
+# sea compatible con el resto del texto
+ipd_values$`Mes Largo - Año` <-  tolower(tools::toTitleCase(ipd_values$`Mes Largo - Año`))
+
+```
+
+Vamos a ajustar los gastos de compras por inflación y luego a compararlos visualmente. El real sera el normal ajustado por el IPD correspondiente al mes.
+
+$$
+\text{Total Real} = \frac{\text{Total}}{\text{IPD}} \times 100
+$$
+
+
+
+```{r}
+
+evolucion_ajustada <- evolucion_mensual %>%
+  left_join(ipd_values[ c("Mes Largo - Año", "IPD")], by = "Mes Largo - Año") %>%
+  mutate(TotalReal = evolucion_mensual$Total / as.numeric(IPD) * 100)
+
+datos_plot <- evolucion_ajustada %>%
+  select(MesOrdenado, Total, TotalReal) %>%
+  pivot_longer(cols = c(Total, TotalReal), names_to = "Tipo", values_to = "Valor")
+
+ggplot(datos_plot, aes(x = MesOrdenado, y = Valor, color = Tipo, group = Tipo)) +
+  geom_line(size = 1) +
+  geom_point() +
+  scale_color_manual(values = c("Total" = "steelblue", "TotalReal" = "darkred"),
+                     labels = c("Nominal", "Real")) +
+  labs(title = "Evolución mensual del gasto en compras (nominal vs real)",
+       x = "Mes",
+       y = "Total de compras",
+       color = "Tipo de gasto") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+Una línea roja que representa ese mismo gasto ajustado por la inflación, lo que refleja el gasto real
+
+
+b. Evolución trimestral:
+
+Este código de abajo analizara la evolución trimestral de los gastos en compras. Primero agrupa los datos por año y trimestre, sumando el total gastado en cada período. Luego ordena los trimestres cronológicamente y los prepara para visualización.
+
+
+```{r}
+
+evolucion_trimestral <- compras %>%
+  group_by(`Año`, `Trimestre Num`, `Trimestre`) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, `Trimestre Num`) %>%
+  mutate(TrimestreOrdenado = factor(paste(Trimestre, Año), 
+                                    levels = unique(paste(Trimestre, Año))))
+
+
+ggplot(evolucion_trimestral, aes(x = TrimestreOrdenado, y = Total)) +
+  geom_col(fill = "darkgreen") +
+  labs(title = "Evolución trimestral del gasto en compras",
+       x = "Trimestre",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+Lo mismo pero para verlo como un line plot
+
+```{r}
+evolucion_trimestral <- compras %>%
+  group_by(Año, Trimestre) %>%
+  summarise(Total = sum(TotalDue), .groups = "drop") %>%
+  arrange(Año, Trimestre) %>%
+  mutate(Periodo = factor(paste0("T", Trimestre, "-", Año), 
+                          levels = unique(paste0("T", Trimestre, "-", Año))))
+
+ggplot(evolucion_trimestral, aes(x = Periodo, y = Total)) +
+  geom_line(group = 1,color = "darkred") +
+  geom_point(color = "red") +
+  labs(title = "Evolución trimestral de compras",
+       x = "Trimestre",
+       y = "Total de compras") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+
+Vamos a hacer ahora un resumen mensual por producto que muestra:
+1) El precio unitario promedio de cada producto por mes
+2) La cantidad total comprada de cada producto por mes
+
+El resultado es una tabla con cinco columnas: Mes, ID del producto, Nombre del producto, Precio promedio y Cantidad total comprada, organizada por mes y producto. Vamos a usar esto para analizar la evolución temporal de precios y volúmenes de compra para cada artículo.
+
+
+```{r}
+
+
+# Une detalle con cabecera y producto
+compras <- lista_tablas$PurchaseOrderDetail %>%
+  inner_join(lista_tablas$PurchaseOrderHeader, by = "PurchaseOrderID") %>%
+  inner_join(lista_tablas$Production.Product, by = "ProductID") %>%
+  mutate(Mes = floor_date(OrderDate, "month"))
+
+# Resumen mensual por producto
+precios_mensuales <- compras %>%
+  group_by(Mes, ProductID, Name) %>%
+  summarise(
+    PrecioUnitario = mean(UnitPrice),
+    CantidadComprada = sum(OrderQty),
+    .groups = "drop"
+  )
+
+precios_mensuales
+
+```
+
+
+Ahora vamos a calcular un índice de precios tipo Laspeyres para analizar la evolución de precios de productos a lo largo del tiempo, usando como referencia un mes base.
+
+Usaremos el mes más antiguo como mes base de referencia
+
+Calculare el índice comparando, para cada mes:
+   - El costo total de la canasta base (cantidades del mes inicial) a precios corrientes.
+   - Versus el costo total de esa misma canasta a precios del mes base.
+
+
+
+```{r}
+# Mes base
+mes_base <- min(precios_mensuales$Mes)
+base <- precios_mensuales %>% filter(Mes == mes_base) %>%
+  select(ProductID, CantidadBase = CantidadComprada, PrecioUniBase = PrecioUnitario)
+base
+# Cálculo del índice de Laspeyres
+indice_laspeyres <- precios_mensuales %>%
+  inner_join(base, by = "ProductID") %>%
+  group_by(Mes) %>%
+  summarise(
+    Laspeyres = sum(PrecioUnitario * CantidadBase) / sum(base$PrecioUniBase * base$CantidadBase)
+  )
+
+indice_laspeyres
+
+```
+
+
+- Indice de Laspeyres: valor del índice que muestra cómo han variado los precios respecto al mes base (valor 1 = mismo nivel de precios que el mes base)
+
+Este índice es útil para medir inflación manteniendo fijas las cantidades del período base, mostrando puramente la variación de precios.
+
+Tambien vamos a calcular:
+
+
+
+```{r}
+# Agrega precios base
+precios_base <- precios_mensuales %>% filter(Mes == mes_base) %>%
+  select(ProductID, PrecioBase = PrecioUnitario)
+
+# Índice de Paasche
+indice_paasche <- precios_mensuales %>%
+  inner_join(precios_base, by = "ProductID") %>%
+  group_by(Mes) %>%
+  summarise(
+    Paasche = sum(PrecioUnitario * CantidadComprada) / sum(PrecioBase * CantidadComprada)
+  )
+
+```
+
+
+```{r}
+indice_fisher <- inner_join(indice_laspeyres, indice_paasche, by = "Mes") %>%
+  mutate(Fisher = sqrt(Laspeyres * Paasche))
+
+```
+
+
+
+```{r}
+indice_fisher
+```
+
+
+Has calculado tres índices de precios mensuales (Laspeyres, Paasche y Fisher) desde abril de 2011 hasta agosto de 2014.
+
+ ¿Qué son estos índices?
+
+  **Laspeyres:** Usa las cantidades del periodo base para ponderar los precios. Tiende a **sobreestimar** la inflación si los consumidores cambian su comportamiento (dejan de comprar lo más caro).
+  **Paasche:** Usa las cantidades del periodo actual para ponderar. Tiende a **subestimar** la inflación si los consumidores eligen productos más baratos.
+  **Fisher:** Promedio geométrico de Laspeyres y Paasche. Sera el que nos centraremos en analizar.
+
+Los tres índices muestran el **nivel de precios relativo al periodo base** (en este caso, abril de 2011).
+
+* Un valor de 1.05 significa que los precios han subido un 5% respecto al mes base.
+* Un valor menor a 1 indica una bajada de precios.
+
+
+```{r}
+
+
+# Unimos índices
+indices <- reduce(list(indice_laspeyres, indice_paasche, indice_fisher), full_join, by = "Mes")
+
+# Plot
+ggplot(indices, aes(x = Mes)) +
+  geom_line(aes(y = Laspeyres.y, color = "Laspeyres")) +
+  geom_line(aes(y = Paasche.y, color = "Paasche")) +
+  geom_line(aes(y = Fisher, color = "Fisher")) +
+  labs(title = "Evolución de los índices de precios",
+       y = "Índice", x = "Mes", color = "Índice")
+
+```
+
+
+
+
+```{r}
+# Unimos encabezados de órdenes con calendario
+compras <- lista_tablas$PurchaseOrderHeader %>%
+  select(PurchaseOrderID, VendorID, OrderDate, TotalDue) %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha"))
+
+```
+
+3. Proveedores más importantes 
+
+Ahora clasificaremos a los 10 principales proveedores según el monto total comprado. Tomando los datos de compras y los de la información de proveedores podemos obtener sus nombres. Luego agrupa por proveedor, suma el total gastado con cada uno, ordena de mayor a menor y selecciona solo los 10 primeros. 
+
+
+```{r}
+top_proveedores <- compras %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name) %>%
+  summarise(TotalComprado = sum(TotalDue)) %>%
+  arrange(desc(TotalComprado)) %>%
+  head(10)
+
+ggplot(top_proveedores, aes(x = reorder(Name, TotalComprado), y = TotalComprado)) +
+  geom_col(fill = "orange") +
+  coord_flip() +
+  labs(title = "Top 10 proveedores por volumen de compras",
+       x = "Proveedor",
+       y = "Total comprado")
+
+```
+
+
+
+
+
+```{r}
+# Top 3 proveedores por total comprado 
+top3_proveedores <- compras %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(VendorID, Proveedor = Name) %>%
+  summarise(TotalComprado = sum(TotalDue), .groups = "drop") %>%
+  arrange(desc(TotalComprado)) %>%
+  slice_head(n = 3)
+
+
+lista_tablas$Production.Product
+productos_top3 <- compras %>%
+  filter(VendorID %in% top3_proveedores$VendorID) %>%
+  left_join(lista_tablas$PurchaseOrderDetail , by = c("PurchaseOrderID" = "PurchaseOrderID")) %>%
+  inner_join(lista_tablas$Vendor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Name, ProductID) %>% 
+  summarise(TotalComprado = sum(TotalDue)) %>%
+  arrange(Name, desc(TotalComprado))
+
+```
+
+
+```{r}
+productos_top3 <- productos_top3 %>%
+  left_join(lista_tablas$Production.Product %>% select(ProductID, ProductName = Name),
+            by = "ProductID")
+productos_top3
+```
+
+
+```{r}
+# Grafico con los nombres de los productos visibles
+ggplot(productos_top3, aes(x = reorder(ProductName, TotalComprado), y = TotalComprado, fill = Name)) +
+  geom_col(show.legend = TRUE) +
+  facet_wrap(~ Name, scales = "free_y") +
+  coord_flip() +
+  labs(title = "Productos más comprados a los Top 3 proveedores",
+       x = "Producto",
+       y = "Total comprado (€)",
+       fill = "Proveedor")
+
+```
+Por si nos interesa ver más información sobre los productos más comprados.
+
+```{r}
+
+
+# Obtenemos ID del vendor "Superior Bicycles"
+vendor_id <- lista_tablas$Vendor %>%
+  filter(Name == "Superior Bicycles") %>%
+  pull(BusinessEntityID)
+
+# Filtramos los productos asociados a ese vendor
+productos_superior <- lista_tablas$ProductVendor %>%
+  filter(BusinessEntityID == vendor_id) %>%
+  inner_join(lista_tablas$Production.Product, by = "ProductID") %>%
+  select(ProductID, ProductName = Name, ProductNumber, StandardPrice, UnitMeasureCode)
+
+print(productos_superior)
+
+```
+
+
+
+
+
+
+
+
+

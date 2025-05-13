@@ -1,6 +1,6 @@
 ---
 title: "Cosas"
-author: "David Alejandro Pedroza De Jesús"
+author: "Joel"
 date: "`r format(Sys.Date(), '%d de %B de %Y')`"
 output:
   pdf_document: 
@@ -128,6 +128,8 @@ for (nombre_tabla in tablas_interes) {
 
 
 ```{r}
+lista_tablas
+print("Calendario")
 names(Calendario)
 ```
 
@@ -195,7 +197,7 @@ ggplot(evolucion_trimestral, aes(x = Periodo, y = Total)) +
   labs(title = "Evolución trimestral de compras",
        x = "Trimestre",
        y = "Total de compras") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 ```
@@ -246,6 +248,24 @@ Podrias cojer los top 3 y desplegar para ver cuales son los productos que venden
 
 Tambien quiero un ranking pero en vez de por volumen por cantidad de dinero ganada
 
+```{r}
+library(dplyr)
+
+# Obtener ID del vendor "Superior Bicycles"
+vendor_id <- lista_tablas$Vendor %>%
+  filter(Name == "Superior Bicycles") %>%
+  pull(BusinessEntityID)
+
+# Filtrar productos asociados a ese vendor
+productos_superior <- lista_tablas$ProductVendor %>%
+  filter(BusinessEntityID == vendor_id) %>%
+  inner_join(lista_tablas$Production.Product, by = "ProductID") %>%
+  select(ProductID, ProductName = Name, ProductNumber, StandardPrice, UnitMeasureCode)
+
+# Mostrar resultado
+print(productos_superior)
+
+```
 
 
 
@@ -271,8 +291,14 @@ productos_top3 <- compras %>%
   arrange(Name, desc(TotalComprado))
 productos_top3
 
-# Gráfico
-ggplot(productos_top3, aes(x = reorder(ProductID, TotalComprado), y = TotalComprado, fill = Name)) +
+
+
+productos_top3 <- productos_top3 %>%
+  left_join(lista_tablas$Production.Product %>% select(ProductID, ProductName = Name),
+            by = "ProductID")
+
+# Crear gráfico con nombres de producto
+ggplot(productos_top3, aes(x = reorder(ProductName, TotalComprado), y = TotalComprado, fill = Name)) +
   geom_col(show.legend = TRUE) +
   facet_wrap(~ Name, scales = "free_y") +
   coord_flip() +
@@ -280,8 +306,6 @@ ggplot(productos_top3, aes(x = reorder(ProductID, TotalComprado), y = TotalCompr
        x = "Producto",
        y = "Total comprado (€)",
        fill = "Proveedor")
-
-productos_top3
 
 ```
 
@@ -306,4 +330,252 @@ ggplot(ranking_monto[1:10, ], aes(x = reorder(Name, TotalGanado), y = TotalGanad
 ```
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ignora esto de abajo!!
+
+
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+# Unir detalle y cabecera
+compras <- lista_tablas$PurchaseOrderDetail %>%
+  inner_join(lista_tablas$PurchaseOrderHeader, by = "PurchaseOrderID") %>%
+  mutate(Mes = floor_date(OrderDate, "month"))
+
+# Agregar nombre del producto
+compras <- compras %>%
+  left_join(lista_tablas$`Production.Product`, by = "ProductID")
+
+# Agregado por producto y mes
+precios_mensuales <- compras %>%
+  group_by(Mes, ProductID, Name) %>%
+  summarise(Precio = mean(UnitPrice), Cantidad = sum(OrderQty), .groups = "drop")
+
+
+```
+
+
+
+```{r}
+# Selecciona meses base y comparación
+
+fecha <- "2012-01-01"
+mes_base <- as.POSIXct(fecha, format = "%Y-%m-%d", tz = "UTC")
+fecha <- "2012-02-01"
+mes_comp <- as.POSIXct(fecha, format = "%Y-%m-%d", tz = "UTC")
+class(mes_base)
+mes_base
+precios_mensuales$Mes[1]
+View(precios_mensuales)
+base <- precios_mensuales %>% filter(Mes == mes_base)
+comp <- precios_mensuales %>% filter(Mes == mes_comp)
+
+indice_laspeyres <- comp %>%
+  inner_join(base, by = "ProductID", suffix = c("_comp", "_base")) %>%
+  summarise(
+    L = sum(Precio_comp * Cantidad_base) / sum(Precio_base * Cantidad_base)
+  )
+
+base
+
+```
+
+
+
+
+```{r}
+indice_paasche <- comp %>%
+  inner_join(base, by = "ProductID", suffix = c("_comp", "_base")) %>%
+  summarise(
+    P = sum(Precio_comp * Cantidad_comp) / sum(Precio_base * Cantidad_comp)
+  )
+
+indice_fisher <- tibble(
+  Fisher = sqrt(indice_laspeyres$L * indice_paasche$P)
+)
+
+```
+
+
+
+
+```{r}
+# Gasto por proveedor
+gastos_proveedor <- compras %>%
+  group_by(VendorID) %>%
+  summarise(Gasto = sum(LineTotal), .groups = "drop") %>%
+  arrange(Gasto) %>%
+  mutate(
+    PropGasto = Gasto / sum(Gasto),
+    Acumulado = cumsum(PropGasto),
+    i = row_number(),
+    xi = i / n()
+  )
+
+# Cálculo del índice de Gini
+gini <- 1 - sum((gastos_proveedor$Acumulado + lag(gastos_proveedor$Acumulado, default = 0)) * diff(c(0, gastos_proveedor$xi)))
+
+```
+
+
+```{r}
+gini
+indice_fisher
+indice_laspeyres
+indice_paasche
+```
+
+
+
+Paasche índices comparan la evolución de precios entre dos períodos.
+
+Incluir índice de Gini anual o trimestral → para comentar si estás dependiendo de pocos proveedores (riesgo).
+
+Segmentar por categoría de producto (Production.Product$ProductLine) → para ver si los precios suben más en una línea.
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+# Une detalle con cabecera y producto
+compras <- lista_tablas$PurchaseOrderDetail %>%
+  inner_join(lista_tablas$PurchaseOrderHeader, by = "PurchaseOrderID") %>%
+  inner_join(lista_tablas$Production.Product, by = "ProductID") %>%
+  mutate(Mes = floor_date(OrderDate, "month"))
+
+# Resumen mensual por producto
+precios_mensuales <- compras %>%
+  group_by(Mes, ProductID, Name) %>%
+  summarise(
+    PrecioUnitario = mean(UnitPrice),
+    CantidadComprada = sum(OrderQty),
+    .groups = "drop"
+  )
+
+```
+
+
+```{r}
+# Mes base
+mes_base <- min(precios_mensuales$Mes)
+
+# Datos del mes base
+base <- precios_mensuales %>% filter(Mes == mes_base) %>%
+  select(ProductID, CantidadBase = CantidadComprada)
+
+# Cálculo del índice de Laspeyres
+indice_laspeyres <- precios_mensuales %>%
+  inner_join(base, by = "ProductID") %>%
+  group_by(Mes) %>%
+  summarise(
+    Laspeyres = sum(PrecioUnitario * CantidadBase) / sum(base$PrecioUnitario * base$CantidadBase)
+  )
+
+```
+
+```{r}
+# Agrega precios base
+precios_base <- precios_mensuales %>% filter(Mes == mes_base) %>%
+  select(ProductID, PrecioBase = PrecioUnitario)
+
+# Índice de Paasche
+indice_paasche <- precios_mensuales %>%
+  inner_join(precios_base, by = "ProductID") %>%
+  group_by(Mes) %>%
+  summarise(
+    Paasche = sum(PrecioUnitario * CantidadComprada) / sum(PrecioBase * CantidadComprada)
+  )
+
+```
+
+
+```{r}
+indice_fisher <- inner_join(indice_laspeyres, indice_paasche, by = "Mes") %>%
+  mutate(Fisher = sqrt(Laspeyres * Paasche))
+
+```
+
+
+```{r}
+library(DescTools)
+
+indice_gini <- precios_mensuales %>%
+  group_by(Mes) %>%
+  summarise(Gini = Gini(PrecioUnitario))
+
+```
+
+```{r}
+library(ggplot2)
+
+# Unimos índices
+indices <- reduce(list(indice_laspeyres, indice_paasche, indice_fisher), full_join, by = "Mes")
+names(indices)
+# Plot
+ggplot(indices, aes(x = Mes)) +
+  geom_line(aes(y = Laspeyres.y, color = "Laspeyres")) +
+  geom_line(aes(y = Paasche.y, color = "Paasche")) +
+  geom_line(aes(y = Fisher, color = "Fisher")) +
+  labs(title = "Evolución de los índices de precios",
+       y = "Índice", x = "Mes", color = "Índice")
+
+```
+
+
+```{r}
+ggplot(indice_gini, aes(x = Mes, y = Gini)) +
+  geom_line(color = "darkred") +
+  labs(title = "Índice de Gini por mes",
+       y = "Gini (desigualdad de precios)",
+       x = "Mes")
+
+```
 
