@@ -22,7 +22,7 @@ Cargamos las librerías necesarias y borramos las variables anteriores:
 
 ```{r results='hide', warning=FALSE}
 rm(list=ls())#Esto para borrar las variables anteriores
-packages = c("DBI","odbc","tidyverse","readxl")
+packages = c("DBI","odbc","tidyverse","readxl","scales")
 package.check <- lapply(packages, FUN = function(x) {
   if (!require(x, character.only = TRUE)) {
     install.packages(x, dependencies = TRUE,
@@ -37,7 +37,7 @@ hacemos una conexión con nuestra base de datos.
 ```{r}
 con <- dbConnect(odbc(),
                  Driver   = "ODBC Driver 17 for SQL Server",  
-                 Server   = "DAVID",
+                 Server   = "localhost",
                  Database = "AdventureWorks2016_EXT",
                  Trusted_Connection = "Yes")
 ```
@@ -304,4 +304,173 @@ XRQ – Truck Ground y ZY-Express: también experimentan un fuerte aumento, aunq
 Overseas – Deluxe: a diferencia del resto, su número de envíos apenas se incrementa.
 
 Este repentino aumento podría explicarse por el auge del comercio electrónico en ese periodo o por una campaña concreta. Tras el pico, el volumen de envíos cae notablemente —tal vez por un fallo logístico— antes de retomar de nuevo su tendencia al alza. En 2014 vuelve a haber una bajada drastica por las mismas fechas, en verano, quizas las empresas bajan su produccion en esta epoca debido a la falta de demanda o de trabajadores.
- 
+
+
+#Indicador  Proveedores con mayor volumen de compra 
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+detalle <- lista_tablas$PurchaseOrderDetail
+proveedor <- lista_tablas$ProductVendor
+producto <- lista_tablas$`Production.Product`
+cabecera <- lista_tablas$PurchaseOrderHeader
+nombreproveedor<-lista_tablas$Vendor
+
+```
+
+```{r}
+library(forcats)
+```
+
+
+```{r}
+compras_proveedor_anual <- detalle %>%
+  inner_join(cabecera, by = "PurchaseOrderID") %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha")) %>%  
+  inner_join(nombreproveedor, by = c("VendorID" = "BusinessEntityID")) %>%
+  group_by(Año, Name) %>%
+  summarise(TotalComprado = sum(LineTotal, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Año) %>%
+  slice_max(order_by = TotalComprado, n = 10)  
+```
+
+
+
+```{r}
+
+compras_proveedor_anual$Año <- as.numeric(compras_proveedor_anual$Año)
+
+
+anios <- sort(unique(compras_proveedor_anual$Año))
+
+
+graficar_por_anio <- function(data, anio) {
+  ggplot(filter(data, Año == anio),
+         aes(x = TotalComprado, y = reorder(Name, TotalComprado))) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(
+      title = paste("Top 10 proveedores en", anio),
+      x = "Total comprado (Dólares en millones)",
+      y = "Proveedor"
+    ) +
+    scale_x_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+    theme_minimal()
+}
+
+
+grafico_2011 <- graficar_por_anio(compras_proveedor_anual, 2011)
+grafico_2012 <- graficar_por_anio(compras_proveedor_anual, 2012)
+grafico_2013 <- graficar_por_anio(compras_proveedor_anual, 2013)
+grafico_2014 <- graficar_por_anio(compras_proveedor_anual, 2014)
+
+grafico_2011
+grafico_2012
+grafico_2013
+grafico_2014
+```
+En este apartado hemos calculado las compras realizadas a los  mayores proveedores por año, en el año 2014 solo tenemos datos hasta agosto , por lo que en los indices y tasas que saquemos tendremos que tener en cuenta este factor.
+
+Podemos ver principalmente 3 proveedores que destacan mas respecto al resto, estos proveedores son
+Chicago City Saddles (por destacar el primer año y mantenerse en lo alto) y luego tenemos Superior Bicycles y Professional Athletic Consultants (destacan mucho en los años posteriores)
+Y esque estos 2 ultimos proveedores no estaban en 2011.
+
+
+```{r}
+top3_nombres <- compras_proveedor_anual %>%
+  filter(Name %in% c("Chicago City Saddles", 
+                     "Superior Bicycles", 
+                     "Professional Athletic Consultants"))
+
+totales_anuales <- compras_proveedor_anual %>%
+  group_by(Año) %>%
+  summarise(TotalAnual = sum(TotalComprado), .groups = "drop")
+
+top3_indices <- top3_nombres %>%
+  left_join(totales_anuales, by = "Año") %>%
+  arrange(Name, Año) %>%
+  group_by(Name) %>%
+  mutate(
+    Participacion = TotalComprado / TotalAnual * 100,
+    GastoAnterior = lag(TotalComprado),
+    TasaCrecimiento = (TotalComprado - GastoAnterior) / GastoAnterior * 100,
+    Base = first(TotalComprado),
+    IndiceBase100 = TotalComprado / Base * 100
+  ) %>%
+  ungroup() %>%
+
+  select(Año,Name,TotalAnual, Participacion, TasaCrecimiento,IndiceBase100)
+```
+
+```{r}
+top3_indices
+```
+
+A partir de estos datos podemos sacar conclusiones muy interesantes, Chicago City Saddles al principio tiene una participacion muy alta a la hora de comprar, pero con los años ha ido bajando hasta quedarse solo en un 8% cuando el primer año tenian  un 27% del total de compras. Por otro lado tenemos Superior Bicycles y Professional Athletic Consultants, que recordemos que empiezan en 2012 y estan rondando todos los años un 15% y un 10% respectivamente manteniendose estables. 
+
+Eso si , las compras en general han tenido un crecimiento exponencial , lo cual indica que la empresa funciona muy bien y tiene pinta que lo va a seguir haciendo , aunque tengamos en cuenta que en este ultimo año solo tenemos  datos hasta agosto , el crecimiento es menor respecto al de 2013, los cuales alcanzan una tasa de crecimiento de 295.19% para  Chicago City, 596.96% para Superior Bicycles y  433.33% para Professional Athletic Consultants. Ahora en agosto apenas llegan a el 100% por lo que rondaran el 200% a final de año que sigue siendo un crecimiento muy alto.
+
+Por ultimo tenemos el indice base que indica el crecimiento de cada año respecto a el primer año con datos /año base), los datos vienen a decir lo mismo , el crecimiento es muy grande y cada año va a mejor.
+
+
+# Indicador 2 Comparacion de precios de los precios estandar (precio esperado) con el precio real 
+
+
+
+
+```{r}
+comparacion_precios_anual <- detalle %>%
+  inner_join(cabecera, by = "PurchaseOrderID") %>%
+  inner_join(proveedor, by = "ProductID") %>%
+  inner_join(producto, by = "ProductID") %>%
+  inner_join(Calendario, by = c("OrderDate" = "Fecha")) %>%
+  select(Año, ProductID, ProductName = Name, PrecioReal = UnitPrice, PrecioEstandar = StandardPrice) %>%
+  mutate(Diferencia = PrecioReal - PrecioEstandar) %>%
+  filter(!is.na(Año)) %>%
+  group_by(Año, ProductID, ProductName) %>%
+  summarise(DiferenciaPromedio = mean(Diferencia, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Año, desc(DiferenciaPromedio))
+```
+
+```{r}
+
+top_altas_anual <- comparacion_precios_anual %>%
+  group_by(Año) %>%
+  slice_max(order_by = DiferenciaPromedio, n = 10) %>%
+  ungroup()
+
+top_bajas_anual <- comparacion_precios_anual %>%
+  group_by(Año) %>%
+  slice_min(order_by = DiferenciaPromedio, n = 10) %>%
+  ungroup()
+```
+
+```{r}
+
+ggplot(top_altas_anual, aes(x = reorder(ProductName, DiferenciaPromedio), y = DiferenciaPromedio)) +
+  geom_bar(stat = "identity", fill = "darkred") +
+  facet_wrap(~ Año, scales = "free_y") +
+  labs(
+    title = "Top Productos con precio real muy Superior al estándar por año",
+    x = "Producto",
+    y = "Diferencia Promedio"
+  ) +
+  coord_flip() +
+  theme_minimal()
+
+ggplot(top_bajas_anual, aes(x = reorder(ProductName, DiferenciaPromedio), y = DiferenciaPromedio)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  facet_wrap(~ Año, scales = "free_y") +
+  labs(
+    title = "Top Productos con precio real muy inferior al estándar por año",
+    x = "Producto",
+    y = "Diferencia Promedio"
+  ) +
+  coord_flip() +
+  theme_minimal()
+```
+
+
+La conclusion principal que podemos sacar es que tanto como los pedales como los frenos los estamos comprando todos los años a un precio mayor del esperado, esto puede deberse a que el precio esperado esta mal calculado o estamos pagando mas de lo que deberiamos en estas compras. Tambien que en el ultimo año es cuando podemos observar unos mayores  cambios entre los precios esperados y los precios reales, sacar indices a partir de esta informacion es complejo ya que la mayoria de productos tienen la misma diferencia todos los años por lo que es siempre igual.
