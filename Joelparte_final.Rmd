@@ -365,7 +365,7 @@ Los tres índices muestran el **nivel de precios relativo al periodo base** (en 
 
 
 ```{r}
-library(ggplot2)
+
 
 # Unimos índices
 indices <- reduce(list(indice_laspeyres, indice_paasche, indice_fisher), full_join, by = "Mes")
