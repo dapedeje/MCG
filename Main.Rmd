@@ -309,3 +309,175 @@ Podemos ver que el producto más ordenados solo se encuentra presente en muchos 
 
 
 
+
+# Perdidas(Existencias que se arrastran al ejercicio siguiente)
+
+
+
+Leer todos los csv
+```{r}
+library(tidyverse)
+library(lubridate)
+
+# Cargar los archivos CSV
+library(tidyverse)
+library(lubridate)
+
+# Leer los archivos correctamente con delimitador ;
+library(tidyverse)
+library(readr)
+
+library(readr)
+library(tidyverse)
+
+pedido_cabecera <- read_delim(
+  "CSVs/Compras_Pedido_Cabecera.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ",", encoding = "ISO-8859-1"),
+  col_names = TRUE,
+  trim_ws = TRUE
+)
+
+pedido_detalle <- read_delim(
+  "CSVs/Compras_Pedido_Detalle.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ",", encoding = "ISO-8859-1"),
+  col_names = TRUE,
+  trim_ws = TRUE
+)
+
+
+```
+
+```{r}
+glimpse(pedido_cabecera)
+glimpse(pedido_detalle)
+
+```
+
+```{r}
+library(dplyr)
+
+pedido_completo <- inner_join(pedido_cabecera, pedido_detalle, by = "PurchaseOrderID")
+
+pedido_completo <- pedido_completo %>%
+  mutate(
+    porcentaje_recibido = (ReceivedQty / OrderQty) * 100
+  )
+
+# Vista previa
+glimpse(pedido_completo)
+
+```
+Puedes identificar a los proveedores más confiables, (la mayoría de los proveedores en el top 10 tienen un porcentaje de entrega promedio cercano al 100%, lo que indica una alta fiabilidad.) que cumplen 
+También puedes detectar a los que requieren revisión o renegociación, como el proveedor 1520.
+
+```{r}
+pedido_completo %>%
+  filter(porcentaje_recibido < 100)
+
+```
+```{r}
+pedido_completo %>%
+  group_by(VendorID) %>%
+  summarise(promedio_recibido = mean(porcentaje_recibido, na.rm = TRUE)) %>%
+  arrange(desc(promedio_recibido))
+
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+pedido_completo %>%
+  group_by(VendorID) %>%
+  summarise(prom_rec = mean(porcentaje_recibido, na.rm = TRUE)) %>%
+  arrange(prom_rec) %>%
+  slice_head(n = 10) %>%
+  ggplot(aes(x = reorder(factor(VendorID), prom_rec), y = prom_rec)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Top 10 proveedores por % promedio recibido",
+       x = "VendorID", y = "Promedio % recibido") +
+  theme_minimal() +
+  coord_flip()
+
+
+```
+1. Extraer el año
+```{r}
+library(dplyr)
+library(lubridate)
+
+pedido_completo <- pedido_completo %>%
+  mutate(Anio = year(OrderDate))
+
+```
+2. Calcular cantidad arrastrada por fila
+```{r}
+pedido_completo <- pedido_completo %>%
+  mutate(arrastrado = OrderQty - ReceivedQty)
+
+```
+3. Sumar el arrastrado por año y producto
+```{r}
+existencias_arrastradas <- pedido_completo %>%
+  group_by(Anio, ProductID) %>%
+  summarise(total_arrastrado = sum(arrastrado, na.rm = TRUE), .groups = "drop") %>%
+  arrange(Anio, ProductID)
+existencias_arrastradas
+
+```
+Ver solo los productos con pérdidas
+```{r}
+existencias_arrastradas %>%
+  filter(total_arrastrado > 0)
+
+```
+```{r}
+library(ggplot2)
+
+existencias_arrastradas %>%
+  filter(total_arrastrado > 0) %>%
+  ggplot(aes(x = factor(Anio), y = total_arrastrado, fill = factor(ProductID))) +
+  geom_col(position = "stack") +
+  labs(title = "Existencias arrastradas por año", x = "Año", y = "Unidades arrastradas")
+
+```
+Asumimos que todo lo comprado fue para venta y que lo no recibido nunca se pudo vender
+Total no vendido
+Hay un aumento muy claro en las unidades arrastradas cada año, especialmente en 2013 y 2014.
+La empresa podría estar comprando más de lo que necesita, o ciertos productos tienen baja rotación.
+
+```{r}
+library(dplyr)
+
+# Asegúrate de que ShipDate esté en formato de fecha
+pedido_completo$ShipDate <- as.Date(pedido_completo$ShipDate)
+
+# Calcular la cantidad no vendida
+pedido_completo <- pedido_completo %>%
+  mutate(
+    cantidad_no_vendida = OrderQty - ReceivedQty
+  )
+
+# Filtrar los productos no vendidos
+productos_no_vendidos <- pedido_completo %>%
+  filter(cantidad_no_vendida > 0)
+
+# Agrupar por fecha de envío (ShipDate) y calcular el total no vendido por día
+productos_no_vendidos_por_dia <- productos_no_vendidos %>%
+  group_by(ShipDate) %>%
+  summarise(total_no_vendido = sum(cantidad_no_vendida, na.rm = TRUE))
+
+# Ver el día con más productos no vendidos
+max_no_vendido_dia <- productos_no_vendidos_por_dia %>%
+  filter(total_no_vendido == max(total_no_vendido))
+
+# Mostrar el resultado
+print(max_no_vendido_dia)
+
+
+#En este caso, el 8 de marzo de 2014 es el día con más productos que no se vendieron, y el total de productos no vendidos ese día es 399 unidades.
+
+```
+
